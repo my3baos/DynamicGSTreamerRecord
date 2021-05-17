@@ -229,7 +229,7 @@ gboolean timeout_callback(gpointer d)
     
     i++;
     g_print("timeout_callback called %d times\n", i);
-    if ( (25 == i)||(80==i))
+    if (25 == i)
     {
         GstPad *sinkpad, *teepad, *teesink;
         GstElement *tee, *queue, *encode, *mux, *sink;
@@ -243,9 +243,13 @@ gboolean timeout_callback(gpointer d)
         mux = gst_element_factory_make ("qtmux", NULL);
         sink = gst_element_factory_make ("filesink", NULL);
 	if(i==25)
-            g_object_set (sink, "location", "aaa.mp4", NULL);
-	else
-	    g_object_set (sink, "location", "bbb.mp4", NULL);
+	{
+	    time_t now = time(NULL);
+	    char filename[40];
+	    sprintf("filename, "%s.mp4", ctime(now));
+	    g_object_set (sink, "location", filename, NULL);
+	}
+
         //data.qmx = mux;
         gst_bin_add_many (GST_BIN (data.pipeline), queue, encode, mux, sink, NULL);
 
@@ -266,13 +270,13 @@ gboolean timeout_callback(gpointer d)
         pipelineElementCount();  // debug function
         return TRUE;
     }
-    if ((75 == i)||120==i)
+    if (200==i)
     {
         gst_pad_add_probe (recSink->teepad, GST_PAD_PROBE_TYPE_IDLE, unlink_cb1, d, NULL);
         pipelineElementCount();   //debug function to make sure pipeline has the expected # of elements
     }
 
-    if( 125 == i)
+    if( 225 == i)
     {
         pipelineElementCount();
 	return FALSE;
