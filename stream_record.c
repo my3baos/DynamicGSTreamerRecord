@@ -1,4 +1,4 @@
-/* 
+/*
  *   hcl - test program to detect/mesure network streaming (PLC/SHP) performance/quality
  */
 
@@ -38,17 +38,24 @@ Sink *recSink;
 static void cb_handoff (GstElement* object,
                         GstBuffer* gstBuf,
                         gpointer data) {
-   //gint32 byterate; 
+   //gint32 byterate;
    gsize offset;
    gsize maxsize;
    CustomData * priv = (CustomData*)data;
-   priv->frame_count++; 
+   priv->frame_count++;
    //g_object_get (G_OBJECT (object), "datarate", &byterate, NULL);
    /* ~ print 'good' status every 3 seconds */
    if (0 == (priv->frame_count % 150))
-      g_print ("<%d> total/dropped = %lu/%lu\n", priv->cam_index, 
-		                                 priv->frame_count,
-					         priv->drop_count);
+      g_print ("<%d> total/dropped = %lu/%lu\n", priv->cam_index,
+                                         priv->frame_count,
+                             priv->drop_count);
+/*
+      g_print ("[%d] total/dropped = %lu/%lu - size %lu, offset %lu, maxsize %lu\n", priv->cam_index,
+                                                    priv->frame_count,
+                                priv->drop_count,
+                                gst_buffer_get_sizes(gstBuf, &offset, &maxsize),
+                                offset, maxsize);
+*/
 }
 
 
@@ -98,7 +105,7 @@ static void cb_message (GstBus * bus, GstMessage * msg, CustomData * data) {
     case GST_MESSAGE_CLOCK_LOST:
       /* Get a new clock */
       g_print (">>>>>> Message: name: %s, source name: %s\n", GST_MESSAGE_TYPE_NAME(msg),
-		                                              GST_MESSAGE_SRC_NAME(msg));
+                                                      GST_MESSAGE_SRC_NAME(msg));
       gst_element_set_state (data->pipeline, GST_STATE_PAUSED);
       gst_element_set_state (data->pipeline, GST_STATE_PLAYING);
       break;
@@ -110,17 +117,17 @@ static void cb_message (GstBus * bus, GstMessage * msg, CustomData * data) {
                                    &dropped);
       data->drop_count = dropped;
       g_print ("++++++ Message: name: %s, source name: %s\n", GST_MESSAGE_TYPE_NAME(msg),
-		                                              GST_MESSAGE_SRC_NAME(msg));
+                                                      GST_MESSAGE_SRC_NAME(msg));
       break;
 
     case GST_MESSAGE_ELEMENT:
        if ( strcmp ("udpsrc0", GST_MESSAGE_SRC_NAME(msg)) == 0) {
           g_print ("++++++ Message: name: %s, source name: %s\n", GST_MESSAGE_TYPE_NAME(msg),
-			                                          GST_MESSAGE_SRC_NAME(msg));
+                                                      GST_MESSAGE_SRC_NAME(msg));
           data->drop_count += N_FRAMES;
-          g_print ("[%d] total/dropped = %lu/%lu\n", data->cam_index, 
-		                                     data->frame_count,
-			                             data->drop_count);
+          g_print ("[%d] total/dropped = %lu/%lu\n", data->cam_index,
+                                             data->frame_count,
+                                         data->drop_count);
        }
       break;
 
@@ -144,19 +151,19 @@ void pipelineElementCount()
     GValue item = G_VALUE_INIT;
     int elementCount = 0;
     gboolean done = FALSE;
-    
+
     while(!done)
     {
-    	switch(gst_iterator_next(it, &item)) {
+        switch(gst_iterator_next(it, &item)) {
             case GST_ITERATOR_OK:
-		elementCount++;
-		g_value_reset(&item);
-		break;
-	    case GST_ITERATOR_ERROR:
-	    case GST_ITERATOR_DONE:
+        elementCount++;
+        g_value_reset(&item);
+        break;
+        case GST_ITERATOR_ERROR:
+        case GST_ITERATOR_DONE:
                 g_print("pipeline element count is %d \n", elementCount);
-		done = TRUE;
-		break;
+        done = TRUE;
+        break;
         }
     }
 
@@ -189,7 +196,7 @@ unlink_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 static GstPadProbeReturn
 unlink_cb1 (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 {
-    GstPad *sinkpad, *eossink, *qsink;
+  GstPad *sinkpad, *eossink, *qsink;
 
   GST_DEBUG_OBJECT (pad, "pad is blocked now");
 
@@ -202,18 +209,17 @@ unlink_cb1 (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 
   /* push EOS into the element, the probe will be fired when the
    * EOS leaves the effect and it has thus drained all of its data */
-  eossink = gst_element_get_static_pad (recSink->encode, "sink"); 
+  eossink = gst_element_get_static_pad (recSink->encode, "sink");
   gst_pad_send_event (eossink, gst_event_new_eos ());
   gst_object_unref (eossink);
 
   // remove queue element
   //unlink queue element sink pad from tee src
-    g_print("unlink queue element sink pad from tee src\n");
   qsink = gst_element_get_static_pad (recSink->queue, "sink");
   gst_pad_unlink (recSink->teepad, qsink);
   gst_object_unref (qsink);
   // remove queue element from pipeline
-  g_print("remove queue element from pipeline\n");
+  //g_print("remove queue element from pipeline\n");
   gst_element_set_state (recSink->queue, GST_STATE_NULL);
   gst_bin_remove (GST_BIN (data.pipeline), recSink->queue);
 
@@ -223,18 +229,20 @@ unlink_cb1 (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 gboolean timeout_callback(gpointer d)
 {
     static int i = 0;
-    
+
     if(recSink == NULL)
         recSink = g_new0 (Sink, 1);
-    
+
     i++;
     g_print("timeout_callback called %d times\n", i);
     if (25 == i)
     {
+        time_t now = time(NULL);
+        char filename[40];
         GstPad *sinkpad, *teepad, *teesink;
         GstElement *tee, *queue, *encode, *mux, *sink;
         GstPadTemplate *templ, *temp2;
-       
+
         tee = gst_bin_get_by_name(GST_BIN(data.pipeline), "dec");
         templ = gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (tee), "src_%u");
         teepad = gst_element_request_pad (tee, templ, NULL, NULL);
@@ -242,23 +250,17 @@ gboolean timeout_callback(gpointer d)
         encode = gst_element_factory_make ("omxh265enc", NULL);
         mux = gst_element_factory_make ("qtmux", NULL);
         sink = gst_element_factory_make ("filesink", NULL);
-	if(i==25)
-	{
-	    time_t now = time(NULL);
-	    char filename[40];
-	    sprintf("filename, "%s.mp4", ctime(now));
-	    g_object_set (sink, "location", filename, NULL);
-	}
 
-        //data.qmx = mux;
+        sprintf(filename, "%s.mp4", ctime(&now));
+        g_object_set (sink, "location", filename, NULL);
+
         gst_bin_add_many (GST_BIN (data.pipeline), queue, encode, mux, sink, NULL);
-
         gst_element_sync_state_with_parent (sink);
         gst_element_sync_state_with_parent (mux);
         gst_element_sync_state_with_parent (encode);
         gst_element_sync_state_with_parent (queue);
         gst_element_link_many (queue, encode, mux, sink, NULL);
- 
+
         sinkpad = gst_element_get_static_pad (queue, "sink");
         gst_pad_link (teepad, sinkpad);
         gst_object_unref (sinkpad);
@@ -266,11 +268,11 @@ gboolean timeout_callback(gpointer d)
         recSink->sink = sink;
         recSink->mux = mux;
         recSink->encode = encode;
-        recSink->queue = queue;	
+        recSink->queue = queue;
         pipelineElementCount();  // debug function
         return TRUE;
     }
-    if (200==i)
+    if (200 == i)
     {
         gst_pad_add_probe (recSink->teepad, GST_PAD_PROBE_TYPE_IDLE, unlink_cb1, d, NULL);
         pipelineElementCount();   //debug function to make sure pipeline has the expected # of elements
@@ -279,7 +281,7 @@ gboolean timeout_callback(gpointer d)
     if( 225 == i)
     {
         pipelineElementCount();
-	return FALSE;
+        return FALSE;
     }
 
     return TRUE;
@@ -288,79 +290,96 @@ gboolean timeout_callback(gpointer d)
 
 int main (int argc, char *argv[])
 {
-  GstElement *pipeline;
-  GstBus *bus;
-  GstStateChangeReturn ret;
-  GMainLoop *main_loop;
-  //CustomData data;
-  GstElement *elm_identity, *elm_udpsrc;
-  gint32 index;
-  gchar pipe_string[1024];
-  
+    GstElement *pipeline;
+    GstBus *bus;
+    GstStateChangeReturn ret;
+    GMainLoop *main_loop;
 
-  /* Initialize GStreamer */
-  gst_init (&argc, &argv);
+    GstElement *elm_identity, *elm_udpsrc;
+    gint32 index;
+    gchar pipe_string[1024];
 
-  /* Initialize our data structure */
-  memset (&data, 0, sizeof (data));
-  
-  if (argc < 2) {
-      g_print ("*** Missing required camera index [0,1,2,3]\n");
-      return -1;
-  }
-  index = atoi (argv[1]);
-  if (index < 0 || index > 3) {
-      g_print ("*** Invalid argument");
-      return -1;
-  }
-  data.cam_index = index;
-  
-  sprintf (pipe_string, "udpsrc port=%d"
-" ! application/x-rtp, media=video, clock-rate=90000, encoding-name=H265,playload=96"
-" ! rtpjitterbuffer latency=5 do-lost=true"
-" ! rtph265depay"
-" ! h265parse"
-" ! video/x-h265,alignment=au"
-" ! nvv4l2decoder disable-dpb=true enable-max-performance=1"
-" ! queue max-size-bytes=0"
-" ! videorate max-rate=30"
-" ! tee name=dec dec."
-" ! queue ! nvvidconv ! nveglglessink window-width=720 window-height=480 sync=false qos=false", 5004+index);
 
-  printf ("%s\n", pipe_string);
+    /* Initialize GStreamer */
+    gst_init (&argc, &argv);
 
-  pipeline = gst_parse_launch (pipe_string, NULL);
+    /* Initialize our data structure */
+    memset (&data, 0, sizeof (data));
 
-  bus = gst_element_get_bus (pipeline);
+    if (argc < 2) {
+        g_print ("*** Missing required camera index [0,1,2,3]\n");
+        return -1;
+    }
+    index = atoi (argv[1]);
+    if (index < 0 || index > 3) {
+        g_print ("*** Invalid argument");
+        return -1;
+    }
+    data.cam_index = index;
 
-  /* Start playing */
-  ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
-  if (ret == GST_STATE_CHANGE_FAILURE) {
-    g_printerr ("Unable to set the pipeline to the playing state.\n");
+
+    char * file_path = "/home/apps/a.mp4";
+
+    sprintf (pipe_string, "udpsrc port=%d"
+        " ! application/x-rtp, media=video, clock-rate=90000, encoding-name=H265,playload=96"
+        " ! rtpjitterbuffer latency=5 do-lost=true"
+        " ! rtph265depay"
+        " ! h265parse"
+        " ! video/x-h265,alignment=au"
+        " ! nvv4l2decoder disable-dpb=true enable-max-performance=1"
+        " ! queue max-size-bytes=0"
+        " ! videorate max-rate=30"
+        " ! identity name=elm_id"
+        " ! tee name=dec dec."
+        " ! queue ! nvvidconv ! nveglglessink window-width=720 window-height=480 sync=false qos=false", 5004+index);
+
+    printf ("%s\n", pipe_string);
+
+    pipeline = gst_parse_launch (pipe_string, NULL);
+
+    bus = gst_element_get_bus (pipeline);
+
+    /* Start playing */
+    ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        g_printerr ("Unable to set the pipeline to the playing state.\n");
+        gst_object_unref (pipeline);
+        return -1;
+    } else if (ret == GST_STATE_CHANGE_NO_PREROLL) {
+        data.is_live = TRUE;
+    }
+
+    main_loop = g_main_loop_new (NULL, FALSE);
+    data.loop = main_loop;
+    data.pipeline = pipeline;
+    data.frame_count = 0;
+    data.drop_count = 0;
+
+    gst_bus_add_signal_watch (bus);
+    g_signal_connect (bus, "message", G_CALLBACK (cb_message), &data);
+
+    //~~~~~~~~~~~  stale video debug handler
+    elm_identity = gst_bin_get_by_name(GST_BIN(pipeline), "elm_id");
+    elm_udpsrc = gst_bin_get_by_name(GST_BIN(pipeline), "udpsrc0");
+    if (!elm_identity || !elm_udpsrc) {
+            g_printerr ("Unable to extract elements.\n");
+            gst_object_unref (pipeline);
+            return -1;
+    }
+
+    gst_bus_add_signal_watch (bus);
+    g_signal_connect(G_OBJECT(elm_identity), "handoff", G_CALLBACK(cb_handoff), &data);
+
+
+    // add source to default context
+    g_timeout_add (100 , timeout_callback , NULL);
+    g_main_loop_run (main_loop);
+
+    /* Free resources */
+    g_main_loop_unref (main_loop);
+    gst_object_unref (bus);
+    gst_element_set_state (pipeline, GST_STATE_NULL);
     gst_object_unref (pipeline);
-    return -1;
-  } else if (ret == GST_STATE_CHANGE_NO_PREROLL) {
-    data.is_live = TRUE;
-  }
 
-  main_loop = g_main_loop_new (NULL, FALSE);
-  data.loop = main_loop;
-  data.pipeline = pipeline;
-  data.frame_count = 0;
-  data.drop_count = 0;
-
-  gst_bus_add_signal_watch (bus);
-  g_signal_connect (bus, "message", G_CALLBACK (cb_message), &data);
-
-  // add source to default context
-  g_timeout_add (100 , timeout_callback , NULL); 
-  g_main_loop_run (main_loop);
-
-  /* Free resources */
-  g_main_loop_unref (main_loop);
-  gst_object_unref (bus);
-  gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (pipeline);
-
-  return 0;
+    return 0;
 }
